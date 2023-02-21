@@ -15,10 +15,13 @@ class ReservationController extends Controller
 {
     public function stepOne(Request $request)
     {
-        $reservation = $request->session()->get('reservation');
-        $min_date = Carbon::today();
-        $max_date = Carbon::now()->addWeek();
-        return view('reservations.step-one', compact('reservation', 'min_date', 'max_date'));
+
+        $reservation = $request ->session()->get('reservation');
+        return view('reservations.stpe-one', get_defined_vars());
+        // $reservation = $request->session()->get('reservation');
+        // $min_date = Carbon::today();
+        // $max_date = Carbon::now()->addWeek();
+        // return view('reservations.step-one', compact('reservation', 'min_date', 'max_date'));
     }
 
     public function storeStepOne(Request $request)
@@ -27,10 +30,13 @@ class ReservationController extends Controller
             'first_name' => ['required'],
             'last_name' => ['required'],
             'email' => ['required', 'email'],
-            'res_date' => ['required', 'date', new DateBetween, new TimeBetween],
+            'res_date' => ['required', 'date'],
             'tel_number' => ['required'],
             'guest_number' => ['required'],
         ]);
+
+        $hour = Carbon::parse($validated['res_date'])->format('H');
+        $min  =  Carbon::parse($validated['res_date'])->format('i');
 
         if (empty($request->session()->get('reservation'))) {
             $reservation = new Reservation();
@@ -42,18 +48,19 @@ class ReservationController extends Controller
             $request->session()->put('reservation', $reservation);
         }
 
-        return to_route('reservations.step.two');
+        return to_route('reservations.step.two', get_defined_vars());
     }
     public function stepTwo(Request $request)
     {
         $reservation = $request->session()->get('reservation');
-        $res_table_ids = Reservation::orderBy('res_date')->get()->filter(function ($value) use ($reservation) {
-            return $value->res_date->format('Y-m-d') == $reservation->res_date->format('Y-m-d');
+        $res_table_ids = Reservation::orderBy('res_date')->get()
+        ->filter(function ($reservation) use ($request) {
+            return $reservation->res_date == $request->validated['res_date'];
         })->pluck('table_id');
         $tables = Table::where('status', TableStatus::Avalaiable)
-            ->where('guest_number', '>=', $reservation->guest_number)
-            ->whereNotIn('id', $res_table_ids)->get();
-        return view('reservations.step-two', compact('reservation', 'tables'));
+        ->where('guest_number', '>=', $request->validated['guest_number'])
+        ->whereNotIn('id', $res_table_ids)->get();
+        return view('reservations.step-two', get_defined_vars());
     }
 
     public function storeStepTwo(Request $request)
@@ -63,6 +70,8 @@ class ReservationController extends Controller
         ]);
         
         $reservation = $request->session()->get('reservation');
+        $reservation->fill($validated);
+        $reservation->save();
         $request->session()->forget('reservation');
 
         return to_route('thankyou');
